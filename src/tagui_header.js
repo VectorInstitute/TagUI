@@ -584,27 +584,77 @@ chrome_step('Input.dispatchKeyEvent',{type: 'char', text: value[character]});}};
 chrome.fillInput = function(raw_intent) {
 raw_intent = (raw_intent.substr(raw_intent.indexOf('-') + 1)).trim();
 field = (raw_intent.substr(0, raw_intent.indexOf('-'))).trim();
-value = (raw_intent.substr(raw_intent.indexOf('-') + 1)).trim();
-var tags = ['td'];
+values = (raw_intent.substr(raw_intent.indexOf('-') + 1)).trim();
+values = JSON.parse(values)
+var chile_tags = ['td'];
+var input_tags = ['input', 'select']
 var found = 'not found';
+var parent = 'not found'
 var htmlString = chrome.getHTMLBody();
 var dummy = document.createElement('html');
 dummy.innerHTML = htmlString;
-for (var i = 0; i < tags.length; i++) {
-    var tagElements = dummy.getElementsByTagName(tags[i])
+for (var i = 0; i < chile_tags.length; i++) {
+    var tagElements = dummy.getElementsByTagName(chile_tags[i])
     for (var i = 0; i < tagElements.length; i++) {
         if (tagElements[i].textContent == field) {
-          found = tagElements[i];
-          parent = document.createElement( 'html' );
-          parent.innerHTML = found.parentElement.outerHTML
-          inputElement = parent.getElementsByTagName('input')
-          chrome.sendKeys(tx(inputElement[0].name), value)
-          break;
+            found = tagElements[i];
+            parent = document.createElement( 'html' );
+            parent.innerHTML = found.parentElement.outerHTML
+            for (var ii = 0; ii < input_tags.length; ii++) {
+                input_tag = input_tags[ii]
+                inputElement = parent.getElementsByTagName(input_tag)
+                if (input_tag === 'input') {
+                    if (inputElement.length === 1 && Object.keys(values).length === 1){
+                        var exp = 'document.querySelector(\'[name="' + inputElement[0].name + '"]\').value = "' + values[Object.keys(values)[0]] + '"'
+                        chrome_step('Runtime.evaluate',{expression: exp})
+
+                    } else if (inputElement.length > 1 && Object.keys(values).length === 1 && inputElement[0].getAttribute("onkeyup")) {
+                        var start = 0 
+                        var length = 0
+                        input_value = values[Object.keys(values)[0]]
+                        for (var j = 0; j < inputElement.length; j++) {
+                            length = parseInt(inputElement[j].getAttribute("onkeyup").match(/(\d+)/))
+                            var exp = 'document.querySelector(\'[name="' + inputElement[j].name + '"]\').value = "' + (input_value.substr(start, length)).trim() + '"'
+                            chrome_step('Runtime.evaluate',{expression: exp})
+                            start += length
+                        }
+                    } else {
+                        for (var j = 0; j < inputElement.length; j++) {
+                            element_data = inputElement[j].getAttribute("id") + ' ' + inputElement[j].getAttribute("name")
+                            var keys = Object.keys(values)
+                            for (var key_index in keys) {
+                                if (element_data.indexOf(keys[key_index]) > -1) {
+                                    var exp = 'document.querySelector(\'[name="' + inputElement[j].name + '"]\').value = "' + values[keys[key_index]] + '"'
+                                    chrome_step('Runtime.evaluate',{expression: exp})
+                                    break;
+                                }
+                            }
+                            
+                        }
+                    }
+                } else if (input_tag === 'select') {
+                    for (var j = 0; j < inputElement.length; j++) {
+                        element_data = inputElement[j].getAttribute("id") + ' ' + inputElement[j].getAttribute("name")
+                        var keys = Object.keys(values)
+                        for (var key_index in keys) {
+                            if (element_data.indexOf(keys[key_index]) > -1) {
+                                var attributes_str = get_att_list(inputElement[j])
+                                var index = find_select_index(inputElement[j], values[keys[key_index]])
+                                chrome_step('Runtime.evaluate',{expression: 'document.querySelector(\'' + attributes_str + '\').selectedIndex = ' + index})
+                                break;
+                            }
+                        }
+                    } 
+
+                }
+            }
+            
+            break;
         }
     }
 }
 
-return found
+return parent.outerHTML
 }
 
 chrome.selectOptionByValue = function(selector,valueToMatch) { // select dropdown option (base on casperjs issue #1390)
@@ -827,6 +877,26 @@ case 'vision': return vision_intent(live_line); break;
 case 'timeout': return timeout_intent(live_line); break;
 case 'code': return code_intent(live_line); break;
 default: return "this.echo('ERROR - cannot understand step " + live_line.replace(/'/g,'\\\'') + "')";}}
+
+function find_select_index(element, value) {
+    for (var option in element.children) {
+        if (parseInt(element.children[option].innerText) === parseInt(value)) {
+            break
+        }
+    }
+    return option
+}
+
+function get_att_list(element) {
+    var attributes_str = ''
+    atts = element.attributes
+    for (var att, i = 0; i < atts.length; i++){
+        att = atts[i];
+        attributes_str += '[' + att.nodeName + '="' + att.nodeValue + '"]'
+    }
+
+    return attributes_str
+}
 
 function escape_quote(script_line) { // helper function for string context intents
 if (script_line == '') return ''; current_context = 'string'; // default is string
