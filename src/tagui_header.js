@@ -581,6 +581,32 @@ else chrome_step('Runtime.evaluate',{expression: 'var sendKeys_field = '+chrome_
 for (var character = 0, length = value.length; character < length; character++) {
 chrome_step('Input.dispatchKeyEvent',{type: 'char', text: value[character]});}};
 
+chrome.fillInput = function(raw_intent) {
+raw_intent = (raw_intent.substr(raw_intent.indexOf('-') + 1)).trim();
+field = (raw_intent.substr(0, raw_intent.indexOf('-'))).trim();
+value = (raw_intent.substr(raw_intent.indexOf('-') + 1)).trim();
+var tags = ['td'];
+var found = 'not found';
+var htmlString = chrome.getHTMLBody();
+var dummy = document.createElement('html');
+dummy.innerHTML = htmlString;
+for (var i = 0; i < tags.length; i++) {
+    var tagElements = dummy.getElementsByTagName(tags[i])
+    for (var i = 0; i < tagElements.length; i++) {
+        if (tagElements[i].textContent == field) {
+          found = tagElements[i];
+          parent = document.createElement( 'html' );
+          parent.innerHTML = found.parentElement.outerHTML
+          inputElement = parent.getElementsByTagName('input')
+          chrome.sendKeys(tx(inputElement[0].name), value)
+          break;
+        }
+    }
+}
+
+return found
+}
+
 chrome.selectOptionByValue = function(selector,valueToMatch) { // select dropdown option (base on casperjs issue #1390)
 chrome.evaluate('function() {var selector = \''+selector+'\'; var valueToMatch = \''+valueToMatch+'\'; var found = false; if ((selector.indexOf(\'/\') == 0) || (selector.indexOf(\'(\') == 0)) var select = document.evaluate(selector,'+chrome_context+',null,XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,null).snapshotItem(0); else var select = '+chrome_context+'.querySelector(selector); if (valueToMatch == \'[clear]\') valueToMatch = \'\'; Array.prototype.forEach.call(select.children, function(opt, i) {if (!found && ((opt.value == valueToMatch)||(opt.text == valueToMatch))) {select.selectedIndex = i; found = true;}}); var evt = document.createEvent("UIEvents"); evt.initUIEvent("change", true, true); select.dispatchEvent(evt);}');};
 
@@ -707,6 +733,11 @@ var ws_message = chrome_step('Runtime.evaluate',{expression: 'document.documentE
 try {var ws_json = JSON.parse(ws_message); if (ws_json.result.result.value)
 return ws_json.result.result.value; else return '';} catch(e) {return '';}};
 
+chrome.getHTMLBody = function() { // get raw html of current webpage
+    var ws_message = chrome_step('Runtime.evaluate',{expression: 'document.body.outerHTML'});
+    try {var ws_json = JSON.parse(ws_message); if (ws_json.result.result.value)
+    return ws_json.result.result.value; else return '';} catch(e) {return '';}};
+
 chrome.getTitle = function() { // get title of current webpage
 var ws_message = chrome_step('Runtime.evaluate',{expression: 'document.title'});
 try {var ws_json = JSON.parse(ws_message); if (ws_json.result.result.value)
@@ -757,6 +788,7 @@ if ((live_line.length > 9) && ((live_line.substr(0,9)).toLowerCase() == 'wait fo
 live_line = 'hover ' + live_line.substr(9);
 
 switch (get_intent(live_line)) {
+case 'fill_input': return fill_input_intent(live_line); break;
 case 'url': return url_intent(live_line); break;
 case 'tap': return tap_intent(live_line); break;
 case 'rtap': return rtap_intent(live_line); break;
@@ -839,6 +871,7 @@ if ((lc_raw_intent.substr(0,5) == 'read ') || (lc_raw_intent.substr(0,6) == 'fet
 if ((lc_raw_intent.substr(0,5) == 'show ') || (lc_raw_intent.substr(0,6) == 'print ')) return 'show';
 if ((lc_raw_intent.substr(0,3) == 'up ') || (lc_raw_intent.substr(0,7) == 'upload ')) return 'upload';
 if ((lc_raw_intent.substr(0,5) == 'down ') || (lc_raw_intent.substr(0,9) == 'download ')) return 'down';
+if (lc_raw_intent.substr(0,11) == 'fill_input ') return 'fill_input';
 if (lc_raw_intent.substr(0,8) == 'receive ') return 'receive';
 if (lc_raw_intent.substr(0,5) == 'echo ') return 'echo';
 if (lc_raw_intent.substr(0,5) == 'save ') return 'save';
@@ -1057,6 +1090,10 @@ else // special handling to send enter key events
 return clear_field + "this.sendKeys(tx('" + param1 + "'),'" + param2 + "',{keepFocus: true});";}}
 else return "this.echo('ERROR - cannot find " + param1 + "')";}
 
+function fill_input_intent(raw_intent) {
+    return "this.fillInput('" + raw_intent + "')"
+}
+
 function select_intent(raw_intent) {raw_intent = eval("'" + escape_bs(raw_intent) + "'"); // support dynamic variables
 var params = ((raw_intent + ' ').substr(1+(raw_intent + ' ').indexOf(' '))).trim();
 var param1 = (params.substr(0,params.indexOf(' as '))).trim();
@@ -1138,7 +1175,7 @@ var param1 = (params.substr(0,params.lastIndexOf(' to '))).trim();
 var param2 = (params.substr(4+params.lastIndexOf(' to '))).trim();
 if (params == '') return "this.echo('ERROR - variable missing for " + raw_intent + "')";
 else if (params.lastIndexOf(' to ') > -1)
-return "save_text('" + abs_file(param2) + "','" + add_concat(param1) + "')"; else
+return "save_text('" + abs_file(param2) + "'," + add_concat(param1) + ")"; else
 return "save_text('','" + add_concat(params) + "')";}
 
 function write_intent(raw_intent) {raw_intent = eval("'" + escape_bs(raw_intent) + "'"); // support dynamic variables
