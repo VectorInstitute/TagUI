@@ -267,6 +267,7 @@ $script_content = str_replace("casper.mouse","chrome.mouse",$script_content); //
 $script_content = str_replace("this.mouse","chrome.mouse",$script_content); // change this.mouse call as well
 $script_content = str_replace("casper.sendKeys","chrome.sendKeys",$script_content); // change sendKeys method to chrome
 $script_content = str_replace("this.sendKeys","chrome.sendKeys",$script_content); // change this.sendKeys call as well
+$script_content = str_replace("this.fillInput","chrome.fillInput",$script_content);
 // for selectOptionByValue check for '(' in order to only overwrite calls and not the custom defined function
 $script_content = str_replace("casper.selectOptionByValue(","chrome.selectOptionByValue(",$script_content); // select
 $script_content = str_replace("this.selectOptionByValue(","chrome.selectOptionByValue(",$script_content); // select
@@ -925,7 +926,7 @@ function live_intent($raw_intent) { // live mode to interactively test tagui ste
 return "casper.then(function() {".
 "{var live_input = '';\nvar sys = require('system'); sys.stdout.write('LIVE MODE - type done to quit\\n \\b');\n".
 "while (true) {live_input = sys.stdin.readLine(); // evaluate input in casperjs context until done is entered\n".
-"if (live_input.indexOf('done') == 0) break; try {eval(tagui_parse(live_input));}
+"if (live_input.indexOf('done') == 0) break; try { sys.stdout.write('[INPUT] ' + live_input + '\\n'); sys.stdout.write('[COMMAND] ' + tagui_parse(live_input) + '\\n'); var result = eval(tagui_parse(live_input)); sys.stdout.write('[RESULTS] ' + result + '\\n\\n');\n}
 catch(e) {this.echo('ERROR - ' + e.message.charAt(0).toLowerCase() + e.message.slice(1));}}}".end_fi()."});"."\n\n";}
 
 function ask_intent($raw_intent) { // ask user for input during automation and save to ask_result variable
